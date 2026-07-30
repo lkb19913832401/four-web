@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汉字谜盒 - AI字谜互动游戏</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card-bg: #16213e;
+    --chat-bg: #0f3460;
+    --accent: #e94560;
+    --gold: #f0c040;
+    --text: #e0e0e0;
+    --text-dim: #a0a0b0;
+    --bubble-ai: #1a3a5c;
+    --bubble-user: #2d5a3f;
+    --input-bg: #1a1a2e;
+    --border: #2a2a4a;
+    --success: #4caf84;
+    --warning: #f0a040;
+    --error: #e94560;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(233, 69, 96, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(240, 192, 64, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(76, 175, 132, 0.05) 0%, transparent 50%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  /* 背景装饰 */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.008) 2px, rgba(255,255,255,0.008) 4px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 520px;
+    height: 90vh;
+    max-height: 800px;
+    background: var(--card-bg);
+    border-radius: 24px;
+    box-shadow: var(--shadow), 0 0 80px rgba(233,69,96,0.08);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ========== Header ========== */
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), #c0392b);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(233,69,96,0.35);
+    flex-shrink: 0;
+  }
+
+  .header-info h1 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff, #e0c080);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.3;
+  }
+
+  .header-info .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .score-badge {
+    margin-left: auto;
+    background: linear-gradient(135deg, rgba(240,192,64,0.15), rgba(240,160,64,0.1));
+    border: 1px solid rgba(240,192,64,0.3);
+    border-radius: 12px;
+    padding: 8px 14px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .score-badge .score-num {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .score-badge .score-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* ========== Chat Area ========== */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-area::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .chat-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chat-area::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+  }
+
+  /* 消息气泡 */
+  .message {
+    display: flex;
+    gap: 10px;
+    animation: fadeInUp 0.4s ease-out;
+    max-width: 90%;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .message.ai {
+    align-self: flex-start;
+  }
+
+  .message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .message .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    align-self: flex-end;
+  }
+
+  .message.ai .avatar {
+    background: linear-gradient(135deg, #4a90d9, #357abd);
+    box-shadow: 0 2px 10px rgba(74,144,217,0.3);
+  }
+
+  .message.user .avatar {
+    background: linear-gradient(135deg, #4caf84, #388e5c);
+    box-shadow: 0 2px 10px rgba(76,175,132,0.3);
+  }
+
+  .message .bubble {
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.7;
+    word-break: break-word;
+    position: relative;
+  }
+
+  .message.ai .bubble {
+    background: var(--bubble-ai);
+    border-bottom-left-radius: 6px;
+    color: #d0d8e8;
+    border: 1px solid rgba(74,144,217,0.15);
+  }
+
+  .message.user .bubble {
+    background: var(--bubble-user);
+    border-bottom-right-radius: 6px;
+    color: #d0e8d8;
+    border: 1px solid rgba(76,175,132,0.15);
+  }
+
+  /* 谜面卡片 */
+  .riddle-card {
+    background: linear-gradient(135deg, rgba(240,192,64,0.08), rgba(233,69,96,0.06));
+    border: 1px solid rgba(240,192,64,0.25);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    margin: 8px 0;
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(240,192,64,0.05); }
+    50% { box-shadow: 0 0 40px rgba(240,192,64,0.15); }
+  }
+
+  .riddle-card .riddle-label {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .riddle-card .riddle-text {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 2px;
+    line-height: 1.5;
+  }
+
+  .riddle-card .riddle-hint-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* 提示气泡 */
+  .hint-box {
+    background: rgba(240,160,64,0.08);
+    border: 1px dashed rgba(240,160,64,0.3);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--warning);
+    margin-top: 4px;
+  }
+
+  .hint-box .hint-level {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+    letter-spacing: 1px;
+  }
+
+  /* 打字指示器 */
+  .typing-indicator {
+    display: flex;
+    gap: 5px;
+    padding: 8px 0;
+  }
+
+  .typing-indicator span {
+    width: 7px;
+    height: 7px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite;
+  }
+
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-8px); opacity: 1; }
+  }
+
+  /* ========== Input Area ========== */
+  .input-area {
+    padding: 14px 20px 18px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .input-row input {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 15px;
+    color: #fff;
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    font-family: inherit;
+  }
+
+  .input-row input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(233,69,96,0.15);
+  }
+
+  .input-row input::placeholder {
+    color: rgba(255,255,255,0.25);
+  }
+
+  .btn {
+    border: none;
+    border-radius: 14px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: inherit;
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+
+  .btn-send {
+    background: linear-gradient(135deg, var(--accent), #c0392b);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(233,69,96,0.3);
+  }
+
+  .btn-send:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(233,69,96,0.45);
+  }
+
+  .btn-send:active {
+    transform: translateY(0);
+  }
+
+  .btn-send:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .action-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn-hint {
+    background: rgba(240,160,64,0.12);
+    color: var(--warning);
+    border: 1px solid rgba(240,160,64,0.25);
+    font-size: 12px;
+    padding: 8px 14px;
+  }
+
+  .btn-hint:hover {
+    background: rgba(240,160,64,0.2);
+  }
+
+  .btn-skip {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 12px;
+    padding: 8px 14px;
+  }
+
+  .btn-skip:hover {
+    background: rgba(255,255,255,0.1);
+  }
+
+  .btn-new {
+    background: rgba(76,175,132,0.12);
+    color: var(--success);
+    border: 1px solid rgba(76,175,132,0.25);
+    font-size: 12px;
+    padding: 8px 14px;
+  }
+
+  .btn-new:hover {
+    background: rgba(76,175,132,0.2);
+  }
+
+  /* ========== 结果弹窗 ========== */
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    animation: fadeIn 0.3s;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .result-card {
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 30px;
+    text-align: center;
+    border: 1px solid var(--border);
+    max-width: 360px;
+    width: 90%;
+    animation: scaleIn 0.4s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .result-card .result-icon {
+    font-size: 56px;
+    margin-bottom: 12px;
+  }
+
+  .result-card .result-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .result-card .result-answer {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--gold);
+    margin: 10px 0;
+    text-shadow: 0 0 30px rgba(240,192,64,0.4);
+  }
+
+  .result-card .result-detail {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #c0392b);
+    color: #fff;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+    transition: all 0.3s;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(233,69,96,0.45);
+  }
+
+  /* ========== Toast ========== */
+  .toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--success);
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 200;
+    animation: toastIn 0.4s ease-out, toastOut 0.4s 2s ease-in forwards;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  @keyframes toastOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* ========== 响应式 ========== */
+  @media (max-width: 540px) {
+    .container {
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+    }
+    body { padding: 0; }
+    .header { padding: 12px 16px; }
+    .chat-area { padding: 14px; }
+    .input-area { padding: 10px 14px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-icon">谜</div>
+    <div class="header-info">
+      <h1>汉字谜盒</h1>
+      <div class="subtitle">AI 字谜互动游戏</div>
+    </div>
+    <div class="score-badge">
+      <div class="score-num" id="scoreDisplay">0</div>
+      <div class="score-label">积分</div>
+    </div>
+  </div>
+
+  <!-- Chat Area -->
+  <div class="chat-area" id="chatArea">
+    <!-- 消息会动态插入这里 -->
+  </div>
+
+  <!-- Input Area -->
+  <div class="input-area">
+    <div class="input-row">
+      <input
+        type="text"
+        id="guessInput"
+        placeholder="输入你猜的汉字..."
+        maxlength="1"
+        autocomplete="off"
+      >
+      <button class="btn btn-send" id="btnSend" onclick="submitGuess()">发送</button>
+    </div>
+    <div class="action-btns">
+      <button class="btn btn-hint" id="btnHint" onclick="requestHint()">💡 提示</button>
+      <button class="btn btn-skip" onclick="skipRiddle()">⏭ 跳过</button>
+      <button class="btn btn-new" onclick="newGame()">🔄 换一题</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast 容器 -->
+<div id="toastContainer"></div>
+
+<!-- 结果弹窗容器 -->
+<div id="overlayContainer"></div>
+
+<script>
+// ==================== 字谜数据库 ====================
+const RIDDLE_DATABASE = [
+  {
+    id: 1,
+    riddle: "一箭穿心",
+    answer: "必",
+    hint1: "箭穿过心脏，心字中间加一撇",
+    hint2: "「心」字中间穿过一撇，像一支箭",
+    hint3: "笔画：5画，常见字，表示「一定」",
+    difficulty: 2
+  },
+  {
+    id: 2,
+    riddle: "一口咬掉牛尾巴",
+    answer: "告",
+    hint1: "牛字去掉尾巴，下面加个口",
+    hint2: "「牛」字去掉下面一竖，换上「口」",
+    hint3: "笔画：7画，常用字，表示「告诉」",
+    difficulty: 2
+  },
+  {
+    id: 3,
+    riddle: "山上还有山",
+    answer: "出",
+    hint1: "两个山字叠在一起",
+    hint2: "一个「山」上面还有一个「山」",
+    hint3: "笔画：5画，常用字，表示「出去」",
+    difficulty: 1
+  },
+  {
+    id: 4,
+    riddle: "七十二小时",
+    answer: "晶",
+    hint1: "三天，三个日",
+    hint2: "72小时正好是三天，三天就是三个「日」",
+    hint3: "笔画：12画，由三个相同的字组成",
+    difficulty: 2
+  },
+  {
+    id: 5,
+    riddle: "皇帝的新衣",
+    answer: "袭",
+    hint1: "龙衣，皇帝穿龙袍",
+    hint2: "「龙」字加「衣」字",
+    hint3: "笔画：11画，表示「袭击」",
+    difficulty: 3
+  },
+  {
+    id: 6,
+    riddle: "一字十三点，难在如何点",
+    answer: "汁",
+    hint1: "十字加三点",
+    hint2: "「十」字旁边三点水",
+    hint3: "笔画：5画，液体的意思",
+    difficulty: 2
+  },
+  {
+    id: 7,
+    riddle: "一个人",
+    answer: "大",
+    hint1: "人字加一横",
+    hint2: "「一」加「人」",
+    hint3: "笔画：3画，表示大小",
+    difficulty: 1
+  },
+  {
+    id: 8,
+    riddle: "一夜又一夜",
+    answer: "多",
+    hint1: "两个夕，夕就是夜晚",
+    hint2: "两个「夕」字叠在一起",
+    hint3: "笔画：6画，表示数量多",
+    difficulty: 1
+  },
+  {
+    id: 9,
+    riddle: "半个月亮",
+    answer: "胖",
+    hint1: "半加上月，半月合在一起",
+    hint2: "左边「月」，右边「半」",
+    hint3: "笔画：9画，表示身体丰满",
+    difficulty: 2
+  },
+  {
+    id: 10,
+    riddle: "需要一半，留下一半",
+    answer: "雷",
+    hint1: "需的一半是雨，留的一半是田",
+    hint2: "「雨」字头加「田」字",
+    hint3: "笔画：13画，自然现象",
+    difficulty: 2
+  },
+  {
+    id: 11,
+    riddle: "综合门市",
+    answer: "闹",
+    hint1: "门加市",
+    hint2: "「门」字框里面加「市」",
+    hint3: "笔画：8画，表示热闹",
+    difficulty: 2
+  },
+  {
+    id: 12,
+    riddle: "千里挑一，百里挑一",
+    answer: "伯",
+    hint1: "千去掉一，百去掉一，都是白，加单人旁",
+    hint2: "「千」去掉一横是「亻」+「白」",
+    hint3: "笔画：7画，称呼用字",
+    difficulty: 3
+  },
+  {
+    id: 13,
+    riddle: "一只黑狗，不叫不吼",
+    answer: "默",
+    hint1: "黑加犬，犬就是狗",
+    hint2: "左边「黑」右边「犬」",
+    hint3: "笔画：16画，表示沉默",
+    difficulty: 2
+  },
+  {
+    id: 14,
+    riddle: "文武双全",
+    answer: "斌",
+    hint1: "左边文，右边武",
+    hint2: "「文」和「武」合在一起",
+    hint3: "笔画：12画，常用于人名",
+    difficulty: 2
+  },
+  {
+    id: 15,
+    riddle: "一大二小",
+    answer: "奈",
+    hint1: "大上面加二和小",
+    hint2: "「大」字下面加「示」（二+小）",
+    hint3: "笔画：8画，表示无奈",
+    difficulty: 2
+  },
+  {
+    id: 16,
+    riddle: "一加一不是二",
+    answer: "王",
+    hint1: "一加一等于王",
+    hint2: "上下两个「一」，中间一个「十」",
+    hint3: "笔画：4画，非常常见的字",
+    difficulty: 1
+  },
+  {
+    id: 17,
+    riddle: "一百减一",
+    answer: "白",
+    hint1: "百字去掉上面一横",
+    hint2: "「百」减去「一」等于「白」",
+    hint3: "笔画：5画，颜色的字",
+    difficulty: 1
+  },
+  {
+    id: 18,
+    riddle: "九十九",
+    answer: "白",
+    hint1: "一百减一",
+    hint2: "一百减去一，等于九十九，也就是「百」减「一」",
+    hint3: "笔画：5画，颜色的字",
+    difficulty: 1
+  },
+  {
+    id: 19,
+    riddle: "半青半紫",
+    answer: "素",
+    hint1: "青的上半部，紫的下半部",
+    hint2: "「青」的上半部分（龶）加「紫」的下半部分（糸）",
+    hint3: "笔画：10画，表示朴素",
+    difficulty: 3
+  },
+  {
+    id: 20,
+    riddle: "旭日东升",
+    answer: "九",
+    hint1: "旭字去掉日",
+    hint2: "「旭」字去掉左边的「日」",
+    hint3: "笔画：2画，数字",
+    difficulty: 1
+  },
+  {
+    id: 21,
+    riddle: "付出爱心",
+    answer: "受",
+    hint1: "爱字去掉心，上面加个爪字头",
+    hint2: "「爫」+「冖」+「又」",
+    hint3: "笔画：8画，表示接受",
+    difficulty: 3
+  },
+  {
+    id: 22,
+    riddle: "格外大方",
+    answer: "回",
+    hint1: "格的外面一个口，大加方",
+    hint2: "「口」里面套一个「口」",
+    hint3: "笔画：6画，表示回来",
+    difficulty: 2
+  },
+  {
+    id: 23,
+    riddle: "左看二十日，右看三十天",
+    answer: "朝",
+    hint1: "左边的十日加十日，右边是月",
+    hint2: "左边是「龺」（十日十），右边是「月」",
+    hint3: "笔画：14画，表示早晨",
+    difficulty: 3
+  },
+  {
+    id: 24,
+    riddle: "八兄弟同赏月",
+    answer: "脱",
+    hint1: "八兄弟是兑，加上月",
+    hint2: "「月」字旁加「兑」",
+    hint3: "笔画：11画，表示脱下",
+    difficulty: 3
+  },
+  {
+    id: 25,
+    riddle: "一斗米",
+    answer: "料",
+    hint1: "米加斗",
+    hint2: "左边「米」右边「斗」",
+    hint3: "笔画：10画，表示材料",
+    difficulty: 2
+  },
+  {
+    id: 26,
+    riddle: "一人在内",
+    answer: "肉",
+    hint1: "内加一个人",
+    hint2: "「内」字里面加「人」",
+    hint3: "笔画：6画，食物",
+    difficulty: 2
+  },
+  {
+    id: 27,
+    riddle: "一流水准",
+    answer: "淮",
+    hint1: "三点水加隹",
+    hint2: "「氵」加「隹」(zhuī)",
+    hint3: "笔画：11画，河流名称",
+    difficulty: 3
+  },
+  {
+    id: 28,
+    riddle: "一钩残月伴三星",
+    answer: "心",
+    hint1: "一个弯钩加三个点",
+    hint2: "「心」字的结构：一个弯钩和三个点",
+    hint3: "笔画：4画，表示内心",
+    difficulty: 2
+  },
+  {
+    id: 29,
+    riddle: "人不在其位",
+    answer: "立",
+    hint1: "位字去掉人",
+    hint2: "「位」字去掉左边的「亻」",
+    hint3: "笔画：5画，表示站立",
+    difficulty: 1
+  },
+  {
+    id: 30,
+    riddle: "春雨绵绵无太阳",
+    answer: "清",
+    hint1: "春去掉日，雨绵绵是水",
+    hint2: "「氵」加「青」（春去掉日）",
+    hint3: "笔画：11画，表示清澈",
+    difficulty: 3
+  },
+  {
+    id: 31,
+    riddle: "太阳西边下，月亮东边挂",
+    answer: "明",
+    hint1: "日加月，日月合在一起",
+    hint2: "左边「日」右边「月」",
+    hint3: "笔画：8画，表示明亮",
+    difficulty: 1
+  },
+  {
+    id: 32,
+    riddle: "休要丢人现眼",
+    answer: "相",
+    hint1: "休去人，加目（眼）",
+    hint2: "「木」（休去掉亻）加「目」",
+    hint3: "笔画：9画，表示相互",
+    difficulty: 2
+  },
+  {
+    id: 33,
+    riddle: "两点一直，一直两点",
+    answer: "慎",
+    hint1: "忄加真，真包含直和两点",
+    hint2: "「忄」加「真」（十+具）",
+    hint3: "笔画：13画，表示谨慎",
+    difficulty: 3
+  },
+  {
+    id: 34,
+    riddle: "有人偷车",
+    answer: "输",
+    hint1: "车加俞（偷去掉人）",
+    hint2: "左边「车」右边「俞」",
+    hint3: "笔画：13画，表示运输",
+    difficulty: 2
+  },
+  {
+    id: 35,
+    riddle: "半推半就",
+    answer: "掠",
+    hint1: "推的一半是扌，就的一半是京",
+    hint2: "「扌」加「京」",
+    hint3: "笔画：11画，表示掠夺",
+    difficulty: 3
+  },
+  {
+    id: 36,
+    riddle: "自言自语",
+    answer: "记",
+    hint1: "言加己",
+    hint2: "「讠」加「己」",
+    hint3: "笔画：5画，表示记录",
+    difficulty: 1
+  },
+  {
+    id: 37,
+    riddle: "千里相逢",
+    answer: "重",
+    hint1: "千加里",
+    hint2: "「千」字上面加「里」字",
+    hint3: "笔画：9画，表示重量",
+    difficulty: 2
+  },
+  {
+    id: 38,
+    riddle: "点点成金",
+    answer: "全",
+    hint1: "金加两点",
+    hint2: "「人」+「王」（金去掉两点+两点）",
+    hint3: "笔画：6画，表示全部",
+    difficulty: 2
+  },
+  {
+    id: 39,
+    riddle: "上下难分",
+    answer: "卡",
+    hint1: "上字和下字合在一起",
+    hint2: "「上」和「下」组合",
+    hint3: "笔画：5画，表示卡住",
+    difficulty: 1
+  },
+  {
+    id: 40,
+    riddle: "刀出鞘",
+    answer: "力",
+    hint1: "刀字出头",
+    hint2: "「刀」字的一撇出头",
+    hint3: "笔画：2画，表示力量",
+    difficulty: 1
+  },
+  {
+    id: 41,
+    riddle: "一边是红，一边是绿，一边喜风，一边喜雨",
+    answer: "秋",
+    hint1: "禾苗喜欢雨，火苗喜欢风",
+    hint2: "左边「禾」右边「火」",
+    hint3: "笔画：9画，季节",
+    difficulty: 2
+  },
+  {
+    id: 42,
+    riddle: "古时候的月亮",
+    answer: "胡",
+    hint1: "古加月",
+    hint2: "左边「古」右边「月」",
+    hint3: "笔画：9画，姓氏",
+    difficulty: 2
+  },
+  {
+    id: 43,
+    riddle: "一阴一阳，一短一长，一昼一夜，合为一双",
+    answer: "明",
+    hint1: "日代表昼，月代表夜",
+    hint2: "「日」和「月」组成一对",
+    hint3: "笔画：8画，表示明亮",
+    difficulty: 2
+  },
+  {
+    id: 44,
+    riddle: "有口难言",
+    answer: "亚",
+    hint1: "哑字去掉口字旁",
+    hint2: "「哑」去掉「口」",
+    hint3: "笔画：6画，亚军",
+    difficulty: 2
+  },
+  {
+    id: 45,
+    riddle: "家中添一口",
+    answer: "豪",
+    hint1: "家加一横一口",
+    hint2: "「豕」上面加「亠」和「口」",
+    hint3: "笔画：14画，表示豪迈",
+    difficulty: 3
+  },
+  {
+    id: 46,
+    riddle: "十个哥哥",
+    answer: "克",
+    hint1: "十加兄",
+    hint2: "「十」加「兄」",
+    hint3: "笔画：7画，表示克服",
+    difficulty: 2
+  },
+  {
+    id: 47,
+    riddle: "十字对十字，太阳对月亮",
+    answer: "朝",
+    hint1: "朝字的结构拆解",
+    hint2: "左边「龺」右边「月」",
+    hint3: "笔画：14画，表示朝向",
+    difficulty: 3
+  },
+  {
+    id: 48,
+    riddle: "存心不让出大门，你说烦人不烦人",
+    answer: "闷",
+    hint1: "门里面加心",
+    hint2: "「门」里关着一个「心」",
+    hint3: "笔画：7画，表示烦闷",
+    difficulty: 2
+  },
+  {
+    id: 49,
+    riddle: "有水能养鱼，有土能种地，有马行千里，有人不是你",
+    answer: "也",
+    hint1: "也加三点水是池，加土是地，加马是驰，加人是他",
+    hint2: "「也」字加偏旁构成：池、地、驰、他",
+    hint3: "笔画：3画，常见字",
+    difficulty: 2
+  },
+  {
+    id: 50,
+    riddle: "两人力大冲破天",
+    answer: "夫",
+    hint1: "二人冲破天",
+    hint2: "「二」+「人」=「天」出头",
+    hint3: "笔画：4画，表示丈夫",
+    difficulty: 2
+  }
+];
+
+// ==================== 游戏状态 ====================
+const state = {
+  currentRiddle: null,
+  hintLevel: 0,
+  score: 0,
+  solved: false,
+  totalAttempts: 0,
+  currentAttempts: 0
+};
+
+// ==================== DOM 引用 ====================
+const chatArea = document.getElementById('chatArea');
+const guessInput = document.getElementById('guessInput');
+const btnSend = document.getElementById('btnSend');
+const btnHint = document.getElementById('btnHint');
+const scoreDisplay = document.getElementById('scoreDisplay');
+
+// ==================== 辅助函数 ====================
+function scrollToBottom() {
+  setTimeout(() => {
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }, 100);
+}
+
+function showToast(msg, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.style.background = type === 'error' ? 'var(--error)' : 'var(--success)';
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+function getRandomRiddle() {
+  const available = RIDDLE_DATABASE.filter(r => r.id !== state.currentRiddle?.id);
+  const idx = Math.floor(Math.random() * available.length);
+  return available[idx];
+}
+
+function getDifficultyLabel(d) {
+  if (d === 1) return '⭐ 简单';
+  if (d === 2) return '⭐⭐ 中等';
+  return '⭐⭐⭐ 困难';
+}
+
+// ==================== 消息渲染 ====================
+function addAIMessage(html) {
+  const div = document.createElement('div');
+  div.className = 'message ai';
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">${html}</div>
+  `;
+  chatArea.appendChild(div);
+  scrollToBottom();
+}
+
+function addUserMessage(text) {
+  const div = document.createElement('div');
+  div.className = 'message user';
+  div.innerHTML = `
+    <div class="avatar">👤</div>
+    <div class="bubble">${escapeHTML(text)}</div>
+  `;
+  chatArea.appendChild(div);
+  scrollToBottom();
+}
+
+function addSystemMessage(text) {
+  const div = document.createElement('div');
+  div.style.cssText = 'text-align:center;font-size:12px;color:var(--text-dim);padding:8px 0;';
+  div.textContent = text;
+  chatArea.appendChild(div);
+  scrollToBottom();
+}
+
+function showTypingIndicator() {
+  const div = document.createElement('div');
+  div.className = 'message ai';
+  div.id = 'typingIndicator';
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">
+      <div class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  `;
+  chatArea.appendChild(div);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ==================== 游戏逻辑 ====================
+function presentRiddle() {
+  state.currentRiddle = getRandomRiddle();
+  state.hintLevel = 0;
+  state.solved = false;
+  state.currentAttempts = 0;
+
+  const r = state.currentRiddle;
+  const html = `
+    <div>🤖 机器人：来猜猜这个字谜吧！</div>
+    <div class="riddle-card">
+      <div class="riddle-label">✦ 谜面 ✦</div>
+      <div class="riddle-text">「${r.riddle}」</div>
+      <div class="riddle-hint-count">难度：${getDifficultyLabel(r.difficulty)} | 剩余提示：3次</div>
+    </div>
+    <div style="margin-top:6px;font-size:13px;color:var(--text-dim);">请在输入框中输入你猜的<strong>一个汉字</strong>～</div>
+  `;
+  addAIMessage(html);
+  btnHint.disabled = false;
+  btnHint.textContent = '💡 提示 (3)';
+  guessInput.disabled = false;
+  btnSend.disabled = false;
+  guessInput.focus();
+}
+
+function submitGuess() {
+  if (state.solved || !state.currentRiddle) return;
+
+  const guess = guessInput.value.trim();
+  if (!guess) {
+    showToast('请输入一个汉字', 'error');
+    return;
+  }
+
+  // 检查是否为汉字
+  if (!/^[\u4e00-\u9fff]$/.test(guess)) {
+    showToast('请输入一个汉字哦～', 'error');
+    return;
+  }
+
+  addUserMessage(guess);
+  guessInput.value = '';
+  state.currentAttempts++;
+  state.totalAttempts++;
+
+  showTypingIndicator();
+
+  setTimeout(() => {
+    removeTypingIndicator();
+
+    if (guess === state.currentRiddle.answer) {
+      // 答对了
+      handleCorrectAnswer();
+    } else {
+      // 答错了
+      handleWrongAnswer(guess);
+    }
+  }, 800 + Math.random() * 600);
+}
+
+function handleCorrectAnswer() {
+  state.solved = true;
+  const r = state.currentRiddle;
+
+  // 根据尝试次数和提示等级计算得分
+  let points = 10;
+  if (state.currentAttempts === 1) points = 20;
+  else if (state.currentAttempts === 2) points = 15;
+  if (state.hintLevel > 0) points -= state.hintLevel * 3;
+  points = Math.max(3, points);
+
+  state.score += points;
+  updateScore();
+
+  const emojis = ['🎉', '👏', '✨', '💯', '🏆'];
+  const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+  const html = `
+    <div style="font-size:16px;font-weight:700;color:var(--success);">${emoji} 恭喜你，答对了！</div>
+    <div style="font-size:36px;font-weight:900;color:var(--gold);margin:10px 0;text-shadow:0 0 20px rgba(240,192,64,0.3);">${r.answer}</div>
+    <div style="font-size:13px;color:var(--text-dim);">
+      谜面：${r.riddle}<br>
+      尝试次数：${state.currentAttempts} 次<br>
+      获得积分：<strong style="color:var(--gold);">+${points}</strong>
+    </div>
+  `;
+  addAIMessage(html);
+
+  guessInput.disabled = true;
+  btnSend.disabled = true;
+  btnHint.disabled = true;
+
+  // 自动出下一题
+  setTimeout(() => {
+    addSystemMessage('⸻  3秒后自动出新题  ⸻');
+    setTimeout(presentRiddle, 2500);
+  }, 1500);
+
+  showToast(`+${points} 积分！`);
+}
+
+function handleWrongAnswer(guess) {
+  const r = state.currentRiddle;
+  const isClose = isSimilarChar(guess, r.answer);
+
+  let feedback;
+  if (isClose) {
+    feedback = `「${guess}」—— 很接近了！再想想看～ 🤔`;
+  } else if (state.currentAttempts >= 5) {
+    feedback = `「${guess}」—— 已经猜了${state.currentAttempts}次了，要不要试试「提示」按钮？`;
+  } else if (state.currentAttempts >= 3) {
+    feedback = `「${guess}」—— 还不对哦，换个思路试试？`;
+  } else {
+    const phrases = [
+      `「${guess}」—— 不太对哦，再想想！`,
+      `「${guess}」—— 不对，换个角度试试？`,
+      `「${guess}」—— 嗯…不是这个字，加油！`,
+      `「${guess}」—— 差一点感觉，继续猜～`
+    ];
+    feedback = phrases[Math.floor(Math.random() * phrases.length)];
+  }
+
+  const html = `
+    <div>${feedback}</div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">已尝试 ${state.currentAttempts} 次</div>
+  `;
+  addAIMessage(html);
+  guessInput.focus();
+}
+
+// 简单判断字形是否相近
+function isSimilarChar(a, b) {
+  if (a === b) return true;
+  // 检查是否共享偏旁
+  const radicals = ['氵', '扌', '讠', '亻', '口', '木', '火', '月', '日', '辶', '艹', '虫', '王', '石', '女', '心', '忄', '钅', '纟', '贝', '车', '马', '鱼', '鸟', '足', '雨', '门'];
+  for (const r of radicals) {
+    if (a.includes(r) && b.includes(r)) return true;
+  }
+  return false;
+}
+
+function requestHint() {
+  if (state.solved || !state.currentRiddle) return;
+  if (state.hintLevel >= 3) {
+    showToast('提示已用完', 'error');
+    return;
+  }
+
+  state.hintLevel++;
+  const r = state.currentRiddle;
+  let hintText;
+
+  switch (state.hintLevel) {
+    case 1:
+      hintText = r.hint1;
+      break;
+    case 2:
+      hintText = r.hint2;
+      break;
+    case 3:
+      hintText = r.hint3;
+      break;
+  }
+
+  const html = `
+    <div>💡 给你一点提示：</div>
+    <div class="hint-box">
+      <div class="hint-level">提示 ${state.hintLevel}/3</div>
+      ${hintText}
+    </div>
+  `;
+  addAIMessage(html);
+
+  const remaining = 3 - state.hintLevel;
+  btnHint.textContent = remaining > 0 ? `💡 提示 (${remaining})` : '💡 提示已用完';
+  if (remaining === 0) btnHint.disabled = true;
+
+  // 使用提示会降低得分
+  if (state.hintLevel === 1) {
+    addSystemMessage('提示：使用提示会略微降低本题得分哦～');
+  }
+
+  guessInput.focus();
+}
+
+function skipRiddle() {
+  if (state.solved || !state.currentRiddle) return;
+
+  const r = state.currentRiddle;
+  state.solved = true;
+
+  const html = `
+    <div style="color:var(--warning);">😅 你跳过了这道题</div>
+    <div style="font-size:28px;font-weight:900;color:var(--text-dim);margin:8px 0;">${r.answer}</div>
+    <div style="font-size:13px;color:var(--text-dim);">
+      谜面：${r.riddle}<br>
+      解析：${r.hint2}
+    </div>
+  `;
+  addAIMessage(html);
+
+  guessInput.disabled = true;
+  btnSend.disabled = true;
+  btnHint.disabled = true;
+
+  setTimeout(() => {
+    addSystemMessage('⸻  3秒后自动出新题  ⸻');
+    setTimeout(presentRiddle, 2500);
+  }, 1500);
+}
+
+function newGame() {
+  if (state.currentRiddle && !state.solved) {
+    const r = state.currentRiddle;
+    state.solved = true;
+    addSystemMessage(`上一题答案：${r.answer}（${r.riddle}）`);
+  }
+  presentRiddle();
+}
+
+function updateScore() {
+  scoreDisplay.textContent = state.score;
+  // 动画效果
+  scoreDisplay.style.transform = 'scale(1.3)';
+  setTimeout(() => { scoreDisplay.style.transform = 'scale(1)'; }, 200);
+}
+
+// ==================== 初始化 ====================
+function init() {
+  const welcomeHTML = `
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px;">欢迎来到 <span style="color:var(--gold);">汉字谜盒</span>！🎊</div>
+    <div style="font-size:13px;color:var(--text-dim);line-height:1.8;">
+      我是你的AI字谜机器人 🤖<br>
+      我会随机出一道经典字谜，你来猜对应的汉字。<br>
+      <br>
+      📌 <strong>规则说明：</strong><br>
+      · 每次输入<strong>一个汉字</strong>作为答案<br>
+      · 每题有 <strong>3次提示</strong> 机会<br>
+      · 使用提示会略微降低得分<br>
+      · 首次猜对可得 <strong>20分</strong><br>
+      · 可以跳过或换题<br>
+      <br>
+      准备好了吗？马上开始第一题！
+    </div>
+  `;
+  addAIMessage(welcomeHTML);
+
+  setTimeout(() => {
+    presentRiddle();
+  }, 1200);
+}
+
+// ==================== 事件监听 ====================
+guessInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitGuess();
+  }
+});
+
+// 输入时自动限制为单个汉字
+guessInput.addEventListener('input', () => {
+  const val = guessInput.value;
+  // 只保留汉字
+  const filtered = val.replace(/[^\u4e00-\u9fff]/g, '');
+  guessInput.value = filtered.slice(0, 1);
+});
+
+// 启动游戏
+init();
+</script>
+</body>
+</html>
